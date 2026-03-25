@@ -5,8 +5,11 @@ import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
+
+# ✅ Choose model
+from sklearn.linear_model import LinearRegression
+# from sklearn.ensemble import RandomForestRegressor  # optional
 
 
 # 📥 Load data
@@ -33,7 +36,12 @@ def split_data(df):
 def build_pipeline():
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
-        ("model", RandomForestRegressor(n_estimators=100, random_state=42))
+        
+        # 🔥 FAST MODEL (Recommended)
+        ("model", LinearRegression())
+
+        # 🔁 ALTERNATIVE (if you want better accuracy but slower)
+        # ("model", RandomForestRegressor(n_estimators=50, max_depth=10, n_jobs=-1, random_state=42))
     ])
     print("✅ Pipeline created")
     return pipeline
@@ -51,14 +59,17 @@ def evaluate(model, X_test, y_test):
     print(f"R2 Score: {r2:.2f}")
 
 
-# 🔥 Feature Importance
+# 🔥 Feature Importance (only for tree models)
 def show_feature_importance(model, feature_names):
-    print("\n📊 Feature Importance:")
+    try:
+        importances = model.named_steps["model"].feature_importances_
 
-    importances = model.named_steps["model"].feature_importances_
+        print("\n📊 Feature Importance:")
+        for name, val in sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True):
+            print(f"{name}: {val:.3f}")
 
-    for name, val in sorted(zip(feature_names, importances), key=lambda x: x[1], reverse=True):
-        print(f"{name}: {val:.3f}")
+    except:
+        print("\n⚠️ Feature importance not available for this model (LinearRegression)")
 
 
 # 💾 Save model
@@ -71,7 +82,7 @@ def save_model(model, path):
 # 🚀 Main function
 if __name__ == "__main__":
     data_path = "data/processed/cleaned_songs.csv"
-    model_path = "models/model.pkl"
+    model_path = "models/best_model.pkl"  # ✅ IMPORTANT (matches Streamlit)
 
     # Load
     df = load_data(data_path)
@@ -89,7 +100,7 @@ if __name__ == "__main__":
     # Evaluate
     evaluate(model, X_test, y_test)
 
-    # 🔥 SHOW FEATURE IMPORTANCE (NEW)
+    # Feature importance
     show_feature_importance(model, X_train.columns)
 
     # Save
