@@ -22,31 +22,24 @@ st.write("Adjust song features to predict popularity")
 @st.cache_resource
 def load_or_train_model():
     try:
-        # ✅ If model exists → load
+        # ✅ Load if exists
         if os.path.exists(model_path):
             return joblib.load(model_path)
 
-        # ⚠️ Train model if not exists
-        st.warning("⚠️ Model not found. Training model... (first run only)")
+        # 🚀 Train if not exists
+        with st.spinner("🚀 Training model for first time... please wait"):
+            from src.training.train import load_data, split_data, build_pipeline
 
-        # Check dataset exists
-        if not os.path.exists(data_path):
-            st.error("❌ Dataset not found. Please check deployment files.")
-            st.stop()
+            df = load_data(data_path)
+            X_train, X_test, y_train, y_test = split_data(df)
 
-        from src.training.train import load_data, split_data, build_pipeline
+            model = build_pipeline()
+            model.fit(X_train, y_train)
 
-        df = load_data(data_path)
-        X_train, X_test, y_train, y_test = split_data(df)
+            os.makedirs(os.path.join(BASE_DIR, "..", "models"), exist_ok=True)
+            joblib.dump(model, model_path)
 
-        model = build_pipeline()
-        model.fit(X_train, y_train)
-
-        # Save model
-        os.makedirs(os.path.join(BASE_DIR, "..", "models"), exist_ok=True)
-        joblib.dump(model, model_path)
-
-        st.success("✅ Model trained successfully!")
+        st.success("✅ Model ready!")
         return model
 
     except Exception as e:
@@ -79,11 +72,18 @@ if st.button("Predict Popularity"):
 
         prediction = model.predict(features)[0]
 
-        # Progress bar
         st.progress(min(int(prediction), 100))
 
-        # Output
+        # 🎯 Output
         st.success(f"🎯 Predicted Popularity: {prediction:.2f}")
+
+        # 🔥 Extra UX (optional)
+        if prediction < 40:
+            st.info("📉 Low popularity track")
+        elif prediction < 70:
+            st.warning("📊 Medium popularity track")
+        else:
+            st.success("🔥 High popularity track!")
 
     except Exception as e:
         st.error(f"❌ Prediction failed: {e}")
