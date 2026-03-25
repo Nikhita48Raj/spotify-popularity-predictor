@@ -1,22 +1,46 @@
 import sys
 import os
 
+# ✅ Fix module path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import streamlit as st
 import joblib
 import numpy as np
-import os
 
-model_path = os.path.join(os.path.dirname(__file__), "..", "models", "best_model.pkl")
-model = joblib.load(model_path)
-# Load model
-model = joblib.load("models/best_model.pkl")
+# 📁 Paths
+BASE_DIR = os.path.dirname(__file__)
+model_path = os.path.join(BASE_DIR, "..", "models", "best_model.pkl")
+data_path = os.path.join(BASE_DIR, "..", "data", "processed", "cleaned_songs.csv")
 
+# 🚀 Load or Train Model
+if not os.path.exists(model_path):
+    st.warning("⚠️ Model not found. Training model... (first run only)")
+
+    from src.training.train import load_data, split_data, build_pipeline
+
+    df = load_data(data_path)
+    X_train, X_test, y_train, y_test = split_data(df)
+
+    model = build_pipeline()
+    model.fit(X_train, y_train)
+
+    os.makedirs(os.path.join(BASE_DIR, "..", "models"), exist_ok=True)
+    joblib.dump(model, model_path)
+
+    st.success("✅ Model trained successfully!")
+
+else:
+    model = joblib.load(model_path)  # ✅ ONLY here
+
+
+# 🎧 UI
 st.title("🎧 Spotify Song Popularity Predictor")
-
 st.write("Adjust song features to predict popularity")
 
-# Sliders for input
+st.subheader("🎛️ Song Features")
+
+# Sliders
 danceability = st.slider("Danceability", 0.0, 1.0, 0.5)
 energy = st.slider("Energy", 0.0, 1.0, 0.5)
 loudness = st.slider("Loudness", -60.0, 0.0, -10.0)
@@ -26,12 +50,12 @@ acousticness = st.slider("Acousticness", 0.0, 1.0, 0.5)
 speechiness = st.slider("Speechiness", 0.0, 1.0, 0.05)
 instrumentalness = st.slider("Instrumentalness", 0.0, 1.0, 0.0)
 
-# Predict button
+# Predict
 if st.button("Predict Popularity"):
     features = np.array([[danceability, energy, loudness, tempo,
                           valence, acousticness, speechiness, instrumentalness]])
 
-    prediction = model.predict(features)
-    st.progress(min(int(prediction[0]), 100))
+    prediction = model.predict(features)[0]
 
-    st.success(f"🎯 Predicted Popularity: {prediction[0]:.2f}")
+    st.progress(min(int(prediction), 100))
+    st.success(f"🎯 Predicted Popularity: {prediction:.2f}")
