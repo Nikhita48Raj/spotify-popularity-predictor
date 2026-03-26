@@ -1,6 +1,7 @@
 import sys
 import os
 
+# ✅ Fix module path for deployment
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import streamlit as st
@@ -21,7 +22,10 @@ st.set_page_config(
 # Paths
 # -----------------------------
 BASE_DIR = os.path.dirname(__file__)
-model_path = os.path.join(BASE_DIR, "..", "models", "best_model.pkl")
+ROOT_DIR = os.path.abspath(os.path.join(BASE_DIR, ".."))
+
+model_path = os.path.join(ROOT_DIR, "models", "best_model.pkl")
+data_path = os.path.join(ROOT_DIR, "data", "processed", "cleaned_songs.csv")
 
 # -----------------------------
 # Custom styling
@@ -48,22 +52,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # -----------------------------
-# Load model
-# -----------------------------
-@st.cache_resource
-def load_model():
-    try:
-        if os.path.exists(model_path):
-            return joblib.load(model_path)
-        st.error("❌ Model not found. Please train the model first.")
-        st.stop()
-    except Exception as e:
-        st.error(f"❌ Error loading model: {e}")
-        st.stop()
-
-model = load_model()
-
-# -----------------------------
 # Helper functions
 # -----------------------------
 def get_feature_ranges():
@@ -78,6 +66,7 @@ def get_feature_ranges():
         "instrumentalness": (0.0, 1.0, 0.1),
     }
 
+
 def get_hit_ranges():
     return {
         "danceability": (0.60, 0.85),
@@ -90,6 +79,7 @@ def get_hit_ranges():
         "instrumentalness": (0.00, 0.10),
     }
 
+
 def get_category(score):
     if score < 40:
         return "Low popularity track"
@@ -97,8 +87,10 @@ def get_category(score):
         return "Medium popularity track"
     return "Potential HIT song"
 
+
 def get_hit_probability(score):
     return max(0, min(score, 100))
+
 
 def feature_feedback(feature_name, value):
     ideal_min, ideal_max = get_hit_ranges()[feature_name]
@@ -107,6 +99,7 @@ def feature_feedback(feature_name, value):
     elif value > ideal_max:
         return "Decrease"
     return "Good"
+
 
 def suggest_improvements(model, features):
     feature_names = [
@@ -164,6 +157,7 @@ def suggest_improvements(model, features):
     suggestions.sort(key=lambda x: x["improvement"], reverse=True)
     return suggestions[:3]
 
+
 def create_radar_chart(feature_values):
     radar_features = [
         "danceability",
@@ -193,6 +187,44 @@ def create_radar_chart(feature_values):
 
     ax.set_title("Song Feature Profile", pad=20)
     return fig
+
+
+# -----------------------------
+# Load or train model
+# -----------------------------
+@st.cache_resource
+def load_or_train_model():
+    try:
+        # ✅ Load existing model
+        if os.path.exists(model_path):
+            return joblib.load(model_path)
+
+        # ✅ Train automatically if model missing
+        if not os.path.exists(data_path):
+            st.error("❌ Dataset not found. Please make sure data/processed/cleaned_songs.csv exists.")
+            st.stop()
+
+        with st.spinner("🚀 Training model for first time... please wait"):
+            from src.training.train import load_data, split_data, build_pipeline
+
+            df = load_data(data_path)
+            X_train, X_test, y_train, y_test = split_data(df)
+
+            model = build_pipeline()
+            model.fit(X_train, y_train)
+
+            os.makedirs(os.path.dirname(model_path), exist_ok=True)
+            joblib.dump(model, model_path)
+
+        st.success("✅ Model trained successfully!")
+        return model
+
+    except Exception as e:
+        st.error(f"❌ Error while loading/training model: {e}")
+        st.stop()
+
+
+model = load_or_train_model()
 
 # -----------------------------
 # Header
